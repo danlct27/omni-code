@@ -27,6 +27,13 @@ pub struct ProviderConfig {
     pub api_key: String,
     #[serde(default)]
     pub models: Vec<String>,
+    /// "openai" or "anthropic". Defaults to "openai".
+    #[serde(default = "default_provider_type")]
+    pub provider_type: String,
+}
+
+fn default_provider_type() -> String {
+    "openai".to_string()
 }
 
 #[derive(Deserialize, Clone)]
@@ -117,14 +124,23 @@ input_per_m = 0.15
 output_per_m = 0.6
 "#;
 
-/// Expand `${VAR_NAME}` to the value of the environment variable.
+/// Expand `${VAR_NAME}` patterns to the value of the environment variable.
 fn expand_env(val: &str) -> String {
-    if val.starts_with("${") && val.ends_with('}') {
-        let var_name = &val[2..val.len() - 1];
-        std::env::var(var_name).unwrap_or_default()
-    } else {
-        val.to_string()
+    let mut result = val.to_string();
+    // Find all ${...} patterns
+    while let Some(start) = result.find("${") {
+        if let Some(end) = result[start..].find('}') {
+            let var_name = &result[start + 2..start + end];
+            let replacement = std::env::var(var_name).unwrap_or_else(|_| {
+                tracing::warn!("Environment variable {var_name} not set, using empty string");
+                String::new()
+            });
+            result = format!("{}{}{}", &result[..start], replacement, &result[start + end + 1..]);
+        } else {
+            break;
+        }
     }
+    result
 }
 
 impl AppConfig {
