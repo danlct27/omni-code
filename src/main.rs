@@ -1,9 +1,15 @@
 mod config;
 mod provider;
+mod router;
 mod server;
+
+use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
 use tokio::net::TcpListener;
+
+use config::AppConfig;
+use router::Router;
 
 #[derive(Parser)]
 #[command(name = "omni-code", about = "Unified AI coding proxy")]
@@ -36,8 +42,10 @@ async fn main() {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Proxy { port, .. } => {
-            let app = server::app();
+        Commands::Proxy { port, config } => {
+            let app_config = AppConfig::load(&config);
+            let router = Arc::new(Router::from_config(&app_config));
+            let app = server::app(router);
             let listener = TcpListener::bind(format!("0.0.0.0:{port}"))
                 .await
                 .expect("failed to bind port");
