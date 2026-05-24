@@ -8,6 +8,16 @@ pub struct AppConfig {
     #[serde(default)]
     pub routes: Vec<RouteRule>,
     pub default_provider: String,
+    #[serde(default)]
+    pub pricing: Vec<ModelPricing>,
+}
+
+/// Per-model pricing (per 1M tokens).
+#[derive(Clone, Deserialize)]
+pub struct ModelPricing {
+    pub model: String,
+    pub input_per_m: f64,
+    pub output_per_m: f64,
 }
 
 #[derive(Deserialize, Clone)]
@@ -50,6 +60,16 @@ models = ["gpt-4o", "gpt-4o-mini"]
 [[routes]]
 model = "gpt-"
 provider = "openai"
+
+[[pricing]]
+model = "gpt-4o"
+input_per_m = 2.5
+output_per_m = 10.0
+
+[[pricing]]
+model = "gpt-4o-mini"
+input_per_m = 0.15
+output_per_m = 0.6
 "#;
 
 impl AppConfig {

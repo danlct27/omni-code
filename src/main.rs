@@ -1,4 +1,5 @@
 mod config;
+mod cost;
 mod logging;
 mod provider;
 mod router;
@@ -58,7 +59,8 @@ async fn main() {
             axum::serve(listener, app).await.expect("server error");
         }
         Commands::Stats => {
-            println!("Coming soon");
+            let app_config = AppConfig::load("~/.omni-code/config.toml");
+            cost::run_stats(&app_config);
         }
     }
 }
