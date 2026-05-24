@@ -1,3 +1,4 @@
+mod provider;
 mod server;
 
 use clap::{Parser, Subcommand};
