@@ -1,4 +1,7 @@
+mod server;
+
 use clap::{Parser, Subcommand};
+use tokio::net::TcpListener;
 
 #[derive(Parser)]
 #[command(name = "omni-code", about = "Unified AI coding proxy")]
@@ -22,7 +25,8 @@ enum Commands {
     Stats,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
@@ -31,7 +35,12 @@ fn main() {
 
     match cli.command {
         Commands::Proxy { port, .. } => {
-            println!("Starting omni-code proxy on port {port}...");
+            let app = server::app();
+            let listener = TcpListener::bind(format!("0.0.0.0:{port}"))
+                .await
+                .expect("failed to bind port");
+            tracing::info!("omni-code proxy listening on port {port}");
+            axum::serve(listener, app).await.expect("server error");
         }
         Commands::Stats => {
             println!("Coming soon");
