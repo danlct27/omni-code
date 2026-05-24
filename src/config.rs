@@ -49,13 +49,58 @@ fn dirs_fallback() -> Option<String> {
     std::env::var("HOME").ok()
 }
 
-const DEFAULT_CONFIG: &str = r#"default_provider = "openai"
+const DEFAULT_CONFIG: &str = r#"default_provider = "ollama"
 
+# Providers — add your API keys and uncomment to enable
+
+# Local Ollama (works out of the box, no API key needed)
 [[providers]]
-name = "openai"
-endpoint = "https://api.openai.com"
-api_key = "sk-REPLACE_ME"
-models = ["gpt-4o", "gpt-4o-mini"]
+name = "ollama"
+endpoint = "http://localhost:11434/v1"
+api_key = "ollama"
+models = ["llama3", "codellama", "mistral"]
+
+# [[providers]]
+# name = "openrouter"
+# endpoint = "https://openrouter.ai/api/v1"
+# api_key = "${OPENROUTER_API_KEY}"
+# models = ["openai/gpt-4o", "anthropic/claude-sonnet", "google/gemini-2.5-flash", "meta-llama/llama-4-maverick"]
+
+# [[providers]]
+# name = "nvidia"
+# endpoint = "https://integrate.api.nvidia.com/v1"
+# api_key = "${NVIDIA_API_KEY}"
+# models = ["meta/llama-3.3-70b-instruct", "nvidia/llama-3.1-nemotron-ultra-253b-v1"]
+
+# [[providers]]
+# name = "deepseek"
+# endpoint = "https://api.deepseek.com/v1"
+# api_key = "${DEEPSEEK_API_KEY}"
+# models = ["deepseek-chat", "deepseek-reasoner"]
+
+# [[providers]]
+# name = "groq"
+# endpoint = "https://api.groq.com/openai/v1"
+# api_key = "${GROQ_API_KEY}"
+# models = ["llama-3.3-70b-versatile", "gemma2-9b-it"]
+
+# [[providers]]
+# name = "together"
+# endpoint = "https://api.together.xyz/v1"
+# api_key = "${TOGETHER_API_KEY}"
+# models = ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "Qwen/Qwen2.5-Coder-32B-Instruct"]
+
+# [[providers]]
+# name = "xai"
+# endpoint = "https://api.x.ai/v1"
+# api_key = "${XAI_API_KEY}"
+# models = ["grok-3", "grok-3-mini"]
+
+# [[providers]]
+# name = "openai"
+# endpoint = "https://api.openai.com"
+# api_key = "${OPENAI_API_KEY}"
+# models = ["gpt-4o", "gpt-4o-mini"]
 
 [[routes]]
 model = "gpt-"
@@ -71,6 +116,16 @@ model = "gpt-4o-mini"
 input_per_m = 0.15
 output_per_m = 0.6
 "#;
+
+/// Expand `${VAR_NAME}` to the value of the environment variable.
+fn expand_env(val: &str) -> String {
+    if val.starts_with("${") && val.ends_with('}') {
+        let var_name = &val[2..val.len() - 1];
+        std::env::var(var_name).unwrap_or_default()
+    } else {
+        val.to_string()
+    }
+}
 
 impl AppConfig {
     pub fn load(path: &str) -> Self {
@@ -90,9 +145,16 @@ impl AppConfig {
             DEFAULT_CONFIG.to_string()
         });
 
-        toml::from_str(&content).unwrap_or_else(|e| {
+        let mut config: Self = toml::from_str(&content).unwrap_or_else(|e| {
             tracing::error!("Failed to parse config: {e}");
             toml::from_str(DEFAULT_CONFIG).unwrap()
-        })
+        });
+
+        // Expand env vars in api_key fields
+        for provider in &mut config.providers {
+            provider.api_key = expand_env(&provider.api_key);
+        }
+
+        config
     }
 }
