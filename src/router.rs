@@ -17,7 +17,7 @@ impl Router {
         let mut providers: HashMap<String, Arc<dyn Provider>> = HashMap::new();
 
         for p in &config.providers {
-            let provider: Arc<dyn Provider> = if p.name.contains("anthropic") {
+            let provider: Arc<dyn Provider> = if p.provider_type == "anthropic" {
                 Arc::new(AnthropicProvider::new(
                     p.endpoint.clone(),
                     p.api_key.clone(),
