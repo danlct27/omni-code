@@ -15,7 +15,7 @@ pub struct LogEntry {
 
 #[derive(Clone)]
 pub struct Logger {
-    tx: mpsc::UnboundedSender<LogEntry>,
+    tx: mpsc::Sender<LogEntry>,
 }
 
 impl Logger {
@@ -42,16 +42,21 @@ impl Logger {
         )
         .expect("failed to create table");
 
-        let (tx, mut rx) = mpsc::unbounded_channel::<LogEntry>();
-        let conn = Arc::new(tokio::sync::Mutex::new(conn));
+        // P0-2: Bounded channel (1024) to prevent OOM
+        let (tx, mut rx) = mpsc::channel::<LogEntry>(1024);
+        let conn = Arc::new(std::sync::Mutex::new(conn));
 
         tokio::spawn(async move {
             while let Some(entry) = rx.recv().await {
-                let conn = conn.lock().await;
-                conn.execute(
-                    "INSERT INTO requests (timestamp, source, model, tokens_in, tokens_out, latency_ms, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                    rusqlite::params![entry.timestamp, entry.source, entry.model, entry.tokens_in, entry.tokens_out, entry.latency_ms, entry.status],
-                ).ok();
+                let conn = conn.clone();
+                // P0-3: spawn_blocking for synchronous SQLite writes
+                tokio::task::spawn_blocking(move || {
+                    let conn = conn.lock().unwrap();
+                    conn.execute(
+                        "INSERT INTO requests (timestamp, source, model, tokens_in, tokens_out, latency_ms, status) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                        rusqlite::params![entry.timestamp, entry.source, entry.model, entry.tokens_in, entry.tokens_out, entry.latency_ms, entry.status],
+                    ).ok();
+                }).await.ok();
             }
         });
 
@@ -59,7 +64,10 @@ impl Logger {
     }
 
     pub fn log_request(&self, entry: LogEntry) {
-        self.tx.send(entry).ok();
+        // P0-2: try_send — drop entry if channel full, don't block hot path
+        if self.tx.try_send(entry).is_err() {
+            tracing::warn!("Log channel full, dropping entry");
+        }
     }
 }
 

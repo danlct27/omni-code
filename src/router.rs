@@ -39,6 +39,16 @@ impl Router {
             .map(|r| (r.model.clone(), r.provider.clone()))
             .collect();
 
+        // P0-1: Validate default_provider exists at startup
+        if !providers.contains_key(&config.default_provider) {
+            eprintln!(
+                "Error: default_provider '{}' not found in configured providers: {:?}",
+                config.default_provider,
+                providers.keys().collect::<Vec<_>>()
+            );
+            std::process::exit(1);
+        }
+
         Self {
             providers,
             routes,
@@ -64,11 +74,11 @@ impl Router {
                 }
             }
         }
-        // Default
+        // Default — safe unwrap, validated at startup
         self.providers
             .get(&self.default_provider)
             .cloned()
-            .expect("default provider not found in config")
+            .unwrap()
     }
 
     /// Return all models from all providers.
